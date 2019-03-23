@@ -1,0 +1,51 @@
+version: '3'
+services:
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.local
+    image: sodalabs-pixy
+    container_name: sodalabs-pixy-app
+    env_file: .env
+    volumes:
+      - .:/code
+      - ~/.aws:/home/app/.aws
+    depends_on:
+      - dynamo
+      - dynamo_init
+    links:
+      - dynamo:dynamo
+    ports:
+      - "8030:8030"
+    tty: true
+    networks:
+      - sodanet
+    command: python3 -u server.py
+
+  dynamo:
+    image: dwmkerr/dynamodb
+    env_file: .env
+    volumes:
+      - .:/dynamo-data
+    ports:
+        - "8020:8000"
+    networks:
+      - sodanet
+    command: "-sharedDb dbPath /dynamo-data"
+
+  dynamo_init:
+    image: sodalabs-pixy
+    env_file: .env
+    links:
+      - dynamo:dynamo
+    volumes:
+      - .:/code
+      - ~/.aws:/home/app/.aws
+    networks:
+      - sodanet
+    command: "make -f Makefile.targets dynamo-local-migrate"
+
+networks:
+  sodanet:
+    driver: "bridge"

@@ -1,0 +1,26 @@
+{
+  "name": "sodalabs-pixy",
+  "version": "1.0.0",
+  "description": "Photo storage service",
+  "main": "index.js",
+  "devDependencies": {
+    "serverless-aws-alias": "^1.7.1",
+    "serverless-aws-documentation": "^1.0.0",
+    "serverless-parameters": "0.0.5",
+    "serverless-plugin-bind-deployment-id": "^1.0.1",
+    "serverless-plugin-tracer": "^1.0.0",
+    "serverless-plugin-warmup": "^3.3.0-rc.1",
+    "serverless-python-requirements": "^3.3.0",
+    "serverless-reqvalidator-plugin": "^1.0.1"
+  },
+  "dependencies": {
+    "i": "^0.3.6",
+    "serverless": "^1.30.0",
+    "serverless-api-stage": "^1.3.0",
+    "serverless-dynamodb-autoscaling": "^0.6.2",
+    "serverless-dynamodb-local": "^0.2.28",
+    "serverless-finch": "^2.2.0",
+    "serverless-plugin-aws-alerts": "^1.2.4",
+    "serverless-pseudo-parameters": "^2.2.0"
+  }
+}

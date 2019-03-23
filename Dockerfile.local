@@ -1,0 +1,27 @@
+FROM alpine:latest
+
+RUN apk update && apk add --update nodejs nodejs-npm yarn zip unzip curl python3 python3-dev libffi libffi-dev bash gcc musl-dev openssl-dev make
+
+ENV PYTHONPATH=/code
+
+RUN addgroup -g 1000 -S app && adduser -S -u 1000 -S app -G app
+
+RUN mkdir -p /code
+
+RUN yarn global add serverless
+
+COPY . /code/
+
+RUN pip3 install --upgrade pip && pip3 install -r ./code/deploy-requirements.txt
+
+RUN pip3 install -r /code/test/requirements.txt
+
+RUN npm i --prefix /code
+
+USER app
+
+ENV PATH /code/node_modules/.bin:$PATH
+
+WORKDIR /code
+
+EXPOSE 3000

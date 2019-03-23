@@ -1,0 +1,2 @@
+pydash
+pyyaml==3.13

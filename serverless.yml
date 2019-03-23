@@ -1,0 +1,194 @@
+service: ${self:custom.project_name}
+provider:
+  name: aws
+  runtime: python3.6
+  region: us-west-2
+  log_level: DEBUG
+  stackTags:
+    service: ${self:custom.project_name}
+  environment: ${file(serverless.env.yml):${opt:account}.env}
+  dynamodb: ${file(serverless.env.yml):${opt:account}.dynamodb}
+  gateway: ${file(serverless.env.yml):${opt:account}.gateway}
+  ssm_parameters: ${file(serverless.env.yml):${opt:account}.ssm_parameters}
+  basepathmapping: ${file(serverless.env.yml):${opt:account}.basepathmapping}
+  deploymentBucket:
+    name: ${ssm:/infrastructure/serverless/s3_bucket}
+    serverSideEncryption: AES256
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - logs:CreateLogGroup
+        - logs:CreateLogStream
+        - logs:PutLogEvents
+      Resource:
+        - "Fn::Join":
+            - ":"
+            - - "arn:aws:logs"
+              - Ref: "AWS::Region"
+              - Ref: "AWS::AccountId"
+              - "log-group:/aws/lambda/*:*:*"
+    - Effect: Allow
+      Action:
+        - lambda:InvokeFunction
+      Resource: "*"
+    - Effect: Allow
+      Action:
+        - ec2:CreateNetworkInterface
+        - ec2:DescribeNetworkInterfaces
+        - ec2:DetachNetworkInterface
+        - ec2:DeleteNetworkInterface
+        - kms:Decrypt
+      Resource: "*"
+    - Effect: Allow
+      Action:
+        - dynamodb:DescribeTable
+        - dynamodb:Query
+        - dynamodb:Scan
+        - dynamodb:GetItem
+        - dynamodb:PutItem
+        - dynamodb:UpdateItem
+        - dynamodb:DeleteItem
+        - dynamodb:BatchWriteItem
+      Resource:
+        - "Fn::Join":
+            - ":"
+            - - "arn:aws:dynamodb"
+              - "${self:custom.region}"
+              - Ref: "AWS::AccountId"
+              - table/${self:provider.environment.DYNAMO_TABLE_NAME}
+        - "Fn::Join":
+            - ":"
+            - - "arn:aws:dynamodb"
+              - "${self:custom.region}"
+              - Ref: "AWS::AccountId"
+              - table/${self:provider.environment.DYNAMO_TABLE_NAME}/index/*
+custom:
+  stage: "${opt:stage, self:provider.stage}"
+  region: "${opt:region, self:provider.region}"
+  api_version: "1"
+  service_name: pixy
+  project_name: ${self:custom.service_name}-${opt:account}
+  dbinstance: ${self:custom.service_name}
+  log_level: "${opt:log_level, self:provider.log_level}"
+  capacities: ${file(serverless.env.yml):${opt:account}.capacities}
+
+  dynamodb:
+    start:
+      port: 8000
+      host: dynamo
+      inMemory: false
+      dbPath: ./dynamo-data
+      migrate: true
+      seed: true
+      sharedDb: true
+
+  pythonRequirements:
+    fileName: src/requirements.txt
+    usePipenv: false
+    noDeploy:
+      - pytest
+  parameters:
+    EnvType:
+      Description: Environment type.
+      Default: ${opt:account}
+      Type: String
+
+package:
+  include:
+    - src/**
+  exclude:
+    - test/**
+    - node_modules/**
+    - src/requirements.txt
+    - src/lib/**
+    - /**
+
+functions:
+  list_all:
+    handler: src/functions/list_all.list_all
+    description: List all photos
+    events:
+      - http:
+          path: /v${self:custom.api_version}/list_all
+          method: get
+          private: false
+          cors: true
+          origin: "*"
+          request:
+            parameters:
+              querystrings:
+                url: true
+              headers:
+                Content-Type: true
+
+plugins:
+  - serverless-python-requirements
+  - serverless-plugin-bind-deployment-id
+  - serverless-parameters
+  - serverless-dynamodb-autoscaling
+  - serverless-dynamodb-local
+  - serverless-pseudo-parameters
+
+resources:
+  Conditions:
+    FalseIfProd:
+      Fn::Not:
+        - Fn::Equals:
+            - Ref: EnvType
+            - prod
+
+    TrueIfDev:
+      Fn::Equals:
+        - Ref: EnvType
+        - dev
+
+  Resources:
+
+    BasePathMapping: ${self:provider.basepathmapping}
+    ListAllEndpoint: ${self:provider.ssm_parameters.ListAll}
+
+    ApiGatewayStage:
+      Type: AWS::ApiGateway::Stage
+      DependsOn: __deployment__
+      Properties:
+        RestApiId:
+          Ref: ApiGatewayRestApi
+        StageName: ${self:custom.stage}
+        DeploymentId:
+          Ref: __deployment__
+        MethodSettings:
+          - DataTraceEnabled: ${self:provider.gateway.datatrace}
+            HttpMethod: "*"
+            LoggingLevel: ${self:provider.gateway.loglevel}
+            ResourcePath: "/*"
+            MetricsEnabled: true
+            CachingEnabled: false
+            ThrottlingBurstLimit: 150
+            ThrottlingRateLimit: 50
+
+    DynamoDbTable:
+      Condition: FalseIfProd
+      Type: AWS::DynamoDB::Table
+      DeletionPolicy: ${self:provider.dynamodb.DeletionPolicy}
+      Properties:
+        TableName: ${self:provider.environment.DYNAMO_TABLE_NAME}
+        AttributeDefinitions:
+          - AttributeName: id
+            AttributeType: S
+          # - AttributeName: title
+          #   AttributeType: S
+          # - AttributeName: description
+          #   AttributeType: S
+          # - AttributeName: thumbnail_url
+          #   AttributeType: S
+          # - AttributeName: photo_url
+          #   AttributeType: S
+        KeySchema:
+          - AttributeName: id
+            KeyType: HASH
+        ProvisionedThroughput:
+          ReadCapacityUnits: ${self:provider.dynamodb.ReadCapacityUnits}
+          WriteCapacityUnits: ${self:provider.dynamodb.WriteCapacityUnits}
+        TimeToLiveSpecification:
+            AttributeName: expiration
+            Enabled: true

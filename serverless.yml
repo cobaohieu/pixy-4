@@ -120,6 +120,16 @@ functions:
                 url: true
               headers:
                 Content-Type: true
+  upload:
+    handler: src/functions/upload.upload
+    description: Upload a new photo
+    events:
+      - http:
+          path: /v${self:custom.api_version}/upload
+          method: post
+          private: false
+          cors: true
+          origin: "*"
 
 plugins:
   - serverless-python-requirements

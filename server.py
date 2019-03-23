@@ -49,8 +49,8 @@ class MockLambdaHandler(http.server.BaseHTTPRequestHandler):
                         "event_id": "c049eb19-a01f-11e8-bf1c-9f61f6e82f32",
                         "email_verified": "true"
                     }
-                },
-            },
+                }
+            }
         }
 
     def get_query_string(self):
